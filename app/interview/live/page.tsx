@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { useBehavioralAnalysis } from '@/hooks/useBehavioralAnalysis';
 import { useFaceAnalysis } from '@/hooks/useFaceAnalysis';
 
-export default function LiveInterviewPage() {
+// 1. Move all your original logic into a safe inner component
+function LiveInterviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const interviewType = searchParams.get('type') || 'behavioral';
   const voiceType = searchParams.get('voice') || 'female';
-  
+
   const greetings: Record<string, string> = {
     behavioral: "Hello! I'm your behavioral interviewer today. To start, could you tell me about a time you faced a significant challenge at work and how you handled it?",
     technical: "Welcome to the technical round. Let's start with your core engineering philosophy. How do you approach designing for scalability and maintainability?",
@@ -81,12 +82,10 @@ export default function LiveInterviewPage() {
     setIsAiThinking(true);
     setError(null);
 
-    // Snapshot history and current question
     const historySnapshot = [...chatHistory];
     const currentQuestion = chatHistory[chatHistory.length - 1].content;
 
     try {
-      // Trigger Analysis in parallel with the correct interview type and real-time emotion
       analyzeResponse(text, currentQuestion, interviewType, faceAnalysis?.expression || 'Neutral');
 
       const res = await fetch('/api/chat', {
@@ -272,7 +271,7 @@ export default function LiveInterviewPage() {
               </div>
             )}
 
-            {/* Standalone ML Analysis (When AI is not speaking but analyzing) */}
+            {/* Standalone ML Analysis */}
             {!lastAnalysis && faceAnalysis && (
               <div className="absolute top-6 right-6 z-30 animate-in fade-in slide-in-from-right-4">
                 <div className="bg-black/60 backdrop-blur-3xl border border-white/10 p-4 rounded-2xl shadow-2xl w-48">
@@ -338,5 +337,21 @@ export default function LiveInterviewPage() {
         .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); }
       `}</style>
     </div>
+  );
+}
+
+// 2. Main Page Component acting as the boundary shell
+export default function LiveInterviewPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen bg-[#050505] items-center justify-center text-white font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+          <p className="text-sm font-medium text-white/40 tracking-wider uppercase animate-pulse">Initializing Room...</p>
+        </div>
+      </div>
+    }>
+      <LiveInterviewContent />
+    </Suspense>
   );
 }
